@@ -11,84 +11,151 @@
   }
   * { box-sizing: border-box; }
   body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.4 system-ui,sans-serif; }
-  header { position:sticky; top:0; z-index:10; background:var(--bg); padding:12px 16px;
-           display:flex; align-items:center; justify-content:space-between; gap:12px;
+  header { position:sticky; top:0; z-index:10; background:var(--bg); padding:10px 16px;
+           display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px;
            border-bottom:1px solid #8884; }
-  h1 { font-size:1.1rem; margin:0; }
-  .speed { display:flex; gap:6px; }
+  h1 { font-size:1.1rem; margin:0; margin-right:auto; }
+  .group { display:flex; gap:6px; }
   button { font:inherit; color:var(--fg); background:var(--card); border:1px solid #8886;
-           border-radius:999px; padding:8px 16px; cursor:pointer; min-height:40px; }
+           border-radius:999px; padding:8px 14px; cursor:pointer; min-height:40px; }
   button[aria-pressed="true"] { background:var(--accent); border-color:var(--accent); color:#fff; }
-  main { display:grid; gap:20px; padding:16px; max-width:1200px; margin:auto;
+  section.wrap { max-width:1200px; margin:auto; padding:16px; }
+  h2.title { font-size:1.05rem; margin:8px 0; }
+  video { display:block; width:100%; max-height:70vh; background:#000; object-fit:contain; border-radius:12px; }
+  .jumps { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .jumps button { font-size:.85rem; padding:6px 10px; min-height:34px; }
+  .jumps button b { color:var(--muted); font-weight:500; margin-right:4px; }
+  main { display:grid; gap:20px; padding:0 16px 32px; max-width:1200px; margin:auto;
          grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr)); }
   .card { background:var(--card); border-radius:12px; overflow:hidden; }
-  .card h2 { font-size:1rem; margin:0; padding:12px 14px; display:flex; gap:8px; align-items:baseline; }
-  .card h2 span { color:var(--muted); font-weight:400; font-size:.85rem; margin-left:auto; }
-  video { display:block; width:100%; max-height:70vh; background:#000; object-fit:contain; }
+  .card h3 { font-size:1rem; margin:0; padding:12px 14px; display:flex; gap:8px; align-items:baseline; }
+  .card h3 span { color:var(--muted); font-weight:400; font-size:.85rem; margin-left:auto; }
+  .card video { border-radius:0; }
 </style>
 </head>
 <body>
 <header>
   <h1>Johnny's steps</h1>
-  <div class="speed" role="group" aria-label="Playback speed">
+  <div class="group" role="group" aria-label="Playback speed">
     <button type="button" data-speed="0.5" aria-pressed="false">Half speed</button>
     <button type="button" data-speed="1" aria-pressed="false">Full speed</button>
   </div>
+  <div class="group" role="group" aria-label="View">
+    <button type="button" data-view="johnny" aria-pressed="false">Johnny</button>
+    <button type="button" data-view="baby" aria-pressed="false">Baby</button>
+  </div>
 </header>
+
+<section class="wrap">
+  <h2 class="title">Whole dance</h2>
+  <video id="full" muted loop playsinline controls preload="metadata"></video>
+  <div class="jumps" id="jumps"></div>
+</section>
+
+<section class="wrap"><h2 class="title">Step by step</h2></section>
 <main id="steps"></main>
+
 <script>
+// [clip number, name, start in the song (seconds)]
 const STEPS = [
-  [1, "Arm sway and cross", "1:00"],
-  [2, "Knee-lift bounce", "1:04"],
-  [3, "Reach up with partner", "1:08"],
-  [4, "Open-arm hop", "1:10"],
-  [5, "Push lunge", "2:47"],
-  [6, "Wide legs point and roll-in", "3:21"],
-  [7, "Hands on hips sway", "2:01"],
-  [8, "Arms overhead lunge", "3:32"],
-  [9, "Kneel and skirt push", "3:45"],
-  [10, "Dip", "4:01"],
-  [11, "Final lift", "4:35"],
+  [12, "Walk-in and dip", 10],
+  [13, "Close hold and reach up", 23],
+  [14, "Hand-hold wide stance and twirl out", 31],
+  [1,  "Arm sway and cross", 60],
+  [2,  "Knee-lift bounce", 64],
+  [3,  "Reach up with partner", 68],
+  [4,  "Open-arm hop", 70.4],
+  [15, "Swap places", 81],
+  [16, "Step-touch and reach apart", 85.5],
+  [5,  "Push lunge", 166.8],
+  [7,  "Hands on hips sway", 121],
+  [6,  "Wide legs point and roll-in", 201],
+  [8,  "Arms overhead lunge", 212.5],
+  [9,  "Kneel and skirt push", 225],
+  [10, "Dip", 241],
+  [18, "Hand to head wide steps", 255],
+  [17, "Embrace and run-off", 269],
+  [11, "Final lift", 275.5],
+];
+// Jump buttons for the whole-dance player, in song order. Times are seconds into the song.
+const FULL_START = 10;
+const SECTIONS = [
+  ["Walk-in and dip", 10], ["Close hold", 23], ["Hand-hold stance", 31],
+  ["Sway and cross", 50], ["Reach and hops", 68], ["Swap places", 81],
+  ["Step-touch", 85.5], ["Push lunge", 96], ["Wide legs point", 111],
+  ["Hands on hips", 121], ["Twirls and hops", 136], ["Push lunge 2", 166.8],
+  ["Wide legs point 2", 201], ["Arms overhead", 212.5], ["Kneel", 225],
+  ["Dip", 241], ["Hand to head", 255], ["Embrace", 269], ["Final lift", 275.5],
 ];
 
-let speed = 0.5;
-try { speed = parseFloat(localStorage.getItem("speed")) || 0.5; } catch (e) {}
+const store = {
+  get(k, d) { try { return localStorage.getItem(k) || d; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+};
+let speed = parseFloat(store.get("speed", "0.5"));
+let view = store.get("view", "johnny");
 
+const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+
+// Whole-dance player
+const full = document.getElementById("full");
+const jumps = document.getElementById("jumps");
+for (const [label, t] of SECTIONS) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.innerHTML = `<b>${fmt(t)}</b>${label}`;
+  b.addEventListener("click", () => { full.currentTime = t - FULL_START; full.play().catch(() => {}); });
+  jumps.appendChild(b);
+}
+
+// Step cards
 const main = document.getElementById("steps");
-const videos = [];
-for (const [n, name, time] of STEPS) {
+const cards = [];
+for (const [n, name, t] of STEPS) {
   const card = document.createElement("section");
   card.className = "card";
-  card.innerHTML = `<h2>${n}. ${name}<span>from ${time}</span></h2>
-    <video src="clips/${n}.mp4" muted loop playsinline controls preload="metadata"></video>`;
+  card.innerHTML = `<h3>${name}<span>from ${fmt(t)}</span></h3><video muted loop playsinline controls preload="metadata"></video>`;
   main.appendChild(card);
-  videos.push(card.querySelector("video"));
+  cards.push({ n, v: card.querySelector("video") });
 }
+const allVideos = [full, ...cards.map(c => c.v)];
 
-function applySpeed() {
-  for (const v of videos) v.playbackRate = speed;
+function setSrc(v, src) {
+  if (v.getAttribute("src") === src) return;
+  const t = v.currentTime, wasPlaying = !v.paused;
+  v.setAttribute("src", src);
+  v.addEventListener("loadedmetadata", () => {
+    v.currentTime = Math.min(t, v.duration || t);
+    v.playbackRate = speed;
+    if (wasPlaying) v.play().catch(() => {});
+  }, { once: true });
+}
+function apply() {
+  setSrc(full, view === "baby" ? "full_baby.mp4" : "full.mp4");
+  for (const { n, v } of cards) setSrc(v, view === "baby" ? `clips/baby/${n}.mp4` : `clips/${n}.mp4`);
+  for (const v of allVideos) v.playbackRate = speed;
   for (const b of document.querySelectorAll("[data-speed]"))
     b.setAttribute("aria-pressed", String(parseFloat(b.dataset.speed) === speed));
+  for (const b of document.querySelectorAll("[data-view]"))
+    b.setAttribute("aria-pressed", String(b.dataset.view === view));
 }
-for (const b of document.querySelectorAll("[data-speed]")) {
-  b.addEventListener("click", () => {
-    speed = parseFloat(b.dataset.speed);
-    try { localStorage.setItem("speed", speed); } catch (e) {}
-    applySpeed();
-  });
-}
-// Browsers reset playbackRate on load; reapply when playback starts.
-for (const v of videos) v.addEventListener("play", () => { v.playbackRate = speed; });
+for (const b of document.querySelectorAll("[data-speed]"))
+  b.addEventListener("click", () => { speed = parseFloat(b.dataset.speed); store.set("speed", speed); apply(); });
+for (const b of document.querySelectorAll("[data-view]"))
+  b.addEventListener("click", () => { view = b.dataset.view; store.set("view", view); apply(); });
 
-// Play only what is on screen, to save battery and data.
+// Browsers can reset playbackRate on play; reapply.
+for (const v of allVideos) v.addEventListener("play", () => { v.playbackRate = speed; });
+
+// Step clips play only while on screen; the whole-dance player is left to the user.
 const io = new IntersectionObserver(entries => {
   for (const e of entries) {
     if (e.isIntersecting) { e.target.playbackRate = speed; e.target.play().catch(() => {}); }
     else e.target.pause();
   }
 }, { threshold: 0.5 });
-videos.forEach(v => io.observe(v));
-applySpeed();
+cards.forEach(c => io.observe(c.v));
+apply();
 </script>
 </body>
 </html>
