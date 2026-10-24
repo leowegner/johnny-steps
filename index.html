@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Johnny's Steps</title>
+<style>
+  :root { --bg:#111; --fg:#eee; --muted:#999; --card:#1c1c1e; --accent:#ff4d6d; }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#f5f5f7; --fg:#111; --muted:#666; --card:#fff; --accent:#d6204a; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.4 system-ui,sans-serif; }
+  header { position:sticky; top:0; z-index:10; background:var(--bg); padding:12px 16px;
+           display:flex; align-items:center; justify-content:space-between; gap:12px;
+           border-bottom:1px solid #8884; }
+  h1 { font-size:1.1rem; margin:0; }
+  .speed { display:flex; gap:6px; }
+  button { font:inherit; color:var(--fg); background:var(--card); border:1px solid #8886;
+           border-radius:999px; padding:8px 16px; cursor:pointer; min-height:40px; }
+  button[aria-pressed="true"] { background:var(--accent); border-color:var(--accent); color:#fff; }
+  main { display:grid; gap:20px; padding:16px; max-width:1200px; margin:auto;
+         grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr)); }
+  .card { background:var(--card); border-radius:12px; overflow:hidden; }
+  .card h2 { font-size:1rem; margin:0; padding:12px 14px; display:flex; gap:8px; align-items:baseline; }
+  .card h2 span { color:var(--muted); font-weight:400; font-size:.85rem; margin-left:auto; }
+  video { display:block; width:100%; max-height:70vh; background:#000; object-fit:contain; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Johnny's steps</h1>
+  <div class="speed" role="group" aria-label="Playback speed">
+    <button type="button" data-speed="0.5" aria-pressed="false">Half speed</button>
+    <button type="button" data-speed="1" aria-pressed="false">Full speed</button>
+  </div>
+</header>
+<main id="steps"></main>
+<script>
+const STEPS = [
+  [1, "Arm sway and cross", "1:00"],
+  [2, "Knee-lift bounce", "1:04"],
+  [3, "Reach up with partner", "1:08"],
+  [4, "Open-arm hop", "1:10"],
+  [5, "Push lunge", "2:47"],
+  [6, "Wide legs point and roll-in", "3:21"],
+  [7, "Hands on hips sway", "2:01"],
+  [8, "Arms overhead lunge", "3:32"],
+  [9, "Kneel and skirt push", "3:45"],
+  [10, "Dip", "4:01"],
+  [11, "Final lift", "4:35"],
+];
+
+let speed = 0.5;
+try { speed = parseFloat(localStorage.getItem("speed")) || 0.5; } catch (e) {}
+
+const main = document.getElementById("steps");
+const videos = [];
+for (const [n, name, time] of STEPS) {
+  const card = document.createElement("section");
+  card.className = "card";
+  card.innerHTML = `<h2>${n}. ${name}<span>from ${time}</span></h2>
+    <video src="clips/${n}.mp4" muted loop playsinline controls preload="metadata"></video>`;
+  main.appendChild(card);
+  videos.push(card.querySelector("video"));
+}
+
+function applySpeed() {
+  for (const v of videos) v.playbackRate = speed;
+  for (const b of document.querySelectorAll("[data-speed]"))
+    b.setAttribute("aria-pressed", String(parseFloat(b.dataset.speed) === speed));
+}
+for (const b of document.querySelectorAll("[data-speed]")) {
+  b.addEventListener("click", () => {
+    speed = parseFloat(b.dataset.speed);
+    try { localStorage.setItem("speed", speed); } catch (e) {}
+    applySpeed();
+  });
+}
+// Browsers reset playbackRate on load; reapply when playback starts.
+for (const v of videos) v.addEventListener("play", () => { v.playbackRate = speed; });
+
+// Play only what is on screen, to save battery and data.
+const io = new IntersectionObserver(entries => {
+  for (const e of entries) {
+    if (e.isIntersecting) { e.target.playbackRate = speed; e.target.play().catch(() => {}); }
+    else e.target.pause();
+  }
+}, { threshold: 0.5 });
+videos.forEach(v => io.observe(v));
+applySpeed();
+</script>
+</body>
+</html>
