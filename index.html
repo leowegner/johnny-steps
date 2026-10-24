@@ -44,6 +44,7 @@
     <button type="button" id="sound" aria-pressed="false">Sound off</button>
   </div>
   <div class="group" role="group" aria-label="View">
+    <button type="button" data-view="both" aria-pressed="false">Both</button>
     <button type="button" data-view="johnny" aria-pressed="false">Johnny</button>
     <button type="button" data-view="baby" aria-pressed="false">Baby</button>
   </div>
@@ -96,7 +97,7 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
 };
 let speed = parseFloat(store.get("speed", "0.5"));
-let view = store.get("view", "johnny");
+let view = store.get("view", "both");
 
 const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
@@ -135,7 +136,11 @@ function setSrc(v, src) {
 }
 function apply() {
   setSrc(full, view === "baby" ? "full_baby.mp4" : "full.mp4");
-  for (const { n, v } of cards) setSrc(v, view === "baby" ? `clips/baby/${n}.mp4` : `clips/${n}.mp4`);
+  for (const { n, v } of cards) {
+    // "Both" is the wide shot. Steps 1 and 2 have a tight Johnny clip, so they get their own wide one.
+    const dir = view === "baby" ? "clips/baby/" : view === "both" && (n === 1 || n === 2) ? "clips/both/" : "clips/";
+    setSrc(v, `${dir}${n}.mp4`);
+  }
   for (const v of allVideos) v.playbackRate = speed;
   for (const b of document.querySelectorAll("[data-speed]"))
     b.setAttribute("aria-pressed", String(parseFloat(b.dataset.speed) === speed));
@@ -148,29 +153,50 @@ for (const b of document.querySelectorAll("[data-view]"))
   b.addEventListener("click", () => { view = b.dataset.view; store.set("view", view); apply(); });
 
 // Browsers block unmuted autoplay, so videos start muted and the Sound button unmutes them.
-let sound = store.get("sound", "off") === "on";
+// Only one video has sound at a time: the one under the pointer, else the most visible playing one.
+let sound = false;
+let hovered = null;
+const visible = new Map();
 const soundBtn = document.getElementById("sound");
+function activeVideo() {
+  if (hovered) return hovered;
+  let best = null, bestRatio = 0;
+  for (const v of allVideos) {
+    const r = visible.get(v) || 0;
+    if (!v.paused && r > bestRatio) { best = v; bestRatio = r; }
+  }
+  return best;
+}
 function applySound() {
-  for (const v of allVideos) v.muted = !sound;
+  const active = sound ? activeVideo() : null;
+  for (const v of allVideos) v.muted = v !== active;
   soundBtn.textContent = sound ? "Sound on" : "Sound off";
   soundBtn.setAttribute("aria-pressed", String(sound));
 }
-soundBtn.addEventListener("click", () => { sound = !sound; store.set("sound", sound ? "on" : "off"); applySound(); });
-// Only the Sound button can turn sound on from a click; a reload starts muted again until it is pressed.
-sound = false;
+soundBtn.addEventListener("click", () => { sound = !sound; applySound(); });
+for (const v of allVideos) {
+  v.addEventListener("pointerenter", () => { hovered = v; applySound(); });
+  v.addEventListener("pointerleave", () => { if (hovered === v) hovered = null; applySound(); });
+  v.addEventListener("play", applySound);
+  v.addEventListener("pause", applySound);
+}
 applySound();
 
 // Browsers can reset playbackRate on play; reapply.
 for (const v of allVideos) v.addEventListener("play", () => { v.playbackRate = speed; });
 
-// Step clips play only while on screen; the whole-dance player is left to the user.
+// Step clips play only while mostly on screen; the whole-dance player starts only when the user presses play.
 const io = new IntersectionObserver(entries => {
   for (const e of entries) {
-    if (e.isIntersecting) { e.target.playbackRate = speed; e.target.play().catch(() => {}); }
+    visible.set(e.target, e.intersectionRatio);
+    if (e.target === full) { if (e.intersectionRatio === 0) full.pause(); continue; }
+    if (e.intersectionRatio >= 0.5) { e.target.playbackRate = speed; e.target.play().catch(() => {}); }
     else e.target.pause();
   }
-}, { threshold: 0.5 });
+  applySound();
+}, { threshold: [0, 0.25, 0.5, 0.75, 1] });
 cards.forEach(c => io.observe(c.v));
+io.observe(full);
 apply();
 </script>
 </body>
