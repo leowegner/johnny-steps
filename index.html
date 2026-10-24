@@ -40,6 +40,9 @@
     <button type="button" data-speed="0.5" aria-pressed="false">Half speed</button>
     <button type="button" data-speed="1" aria-pressed="false">Full speed</button>
   </div>
+  <div class="group" role="group" aria-label="Sound">
+    <button type="button" id="sound" aria-pressed="false">Sound off</button>
+  </div>
   <div class="group" role="group" aria-label="View">
     <button type="button" data-view="johnny" aria-pressed="false">Johnny</button>
     <button type="button" data-view="baby" aria-pressed="false">Baby</button>
@@ -143,6 +146,19 @@ for (const b of document.querySelectorAll("[data-speed]"))
   b.addEventListener("click", () => { speed = parseFloat(b.dataset.speed); store.set("speed", speed); apply(); });
 for (const b of document.querySelectorAll("[data-view]"))
   b.addEventListener("click", () => { view = b.dataset.view; store.set("view", view); apply(); });
+
+// Browsers block unmuted autoplay, so videos start muted and the Sound button unmutes them.
+let sound = store.get("sound", "off") === "on";
+const soundBtn = document.getElementById("sound");
+function applySound() {
+  for (const v of allVideos) v.muted = !sound;
+  soundBtn.textContent = sound ? "Sound on" : "Sound off";
+  soundBtn.setAttribute("aria-pressed", String(sound));
+}
+soundBtn.addEventListener("click", () => { sound = !sound; store.set("sound", sound ? "on" : "off"); applySound(); });
+// Only the Sound button can turn sound on from a click; a reload starts muted again until it is pressed.
+sound = false;
+applySound();
 
 // Browsers can reset playbackRate on play; reapply.
 for (const v of allVideos) v.addEventListener("play", () => { v.playbackRate = speed; });
